@@ -32,10 +32,8 @@ class Strategy(object):
         if 'cifar' in self.config.data_name:
             self.train_transform = transforms.Compose([
                 transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(size=32, padding=4),
                 transforms.ToTensor(),
                 transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010]),
-                transforms.RandomErasing(p=0.6, scale=(0.03, 0.08), ratio=(0.3, 3.3)),
             ])
             if self.config.data_name == 'cifar10':
                 self.train_dataset = CIFAR10(os.path.join(self.config.root_path, self.config.data_directory),
