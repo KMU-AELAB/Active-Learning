@@ -55,7 +55,7 @@ class ClassificationWithFeature(object):
                 self.test_dataset = CIFAR10(os.path.join(self.config.root_path, self.config.data_directory),
                                             train=False, download=True, transform=self.test_transform)
                 self.dataset_for_additional = CIFAR10(os.path.join(self.config.root_path, self.config.data_directory),
-                                                      train=False, download=True, transform=self.additional_transform)
+                                                      train=True, download=True, transform=self.additional_transform)
             elif self.config.data_name == 'cifar100':
                 self.train_dataset = CIFAR100(os.path.join(self.config.root_path, self.config.data_directory),
                                              train=True, download=True, transform=self.train_transform)
