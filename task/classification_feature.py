@@ -12,7 +12,7 @@ from torchvision.datasets import CIFAR10, CIFAR100
 from .graph.resnet import ResNet18 as resnet
 from .graph.featurenet import FeatureNet as fnet
 from .graph.loss import CELoss as loss
-from .graph.loss import GDistanceLoss as d_loss
+from .graph.loss import MSE as mse_loss
 from data.sampler import Sampler
 
 from utils.metrics import AverageMeter
@@ -86,7 +86,7 @@ class ClassificationWithFeature(object):
     def set_train(self):
         # define loss
         self.loss = loss().cuda()
-        self.d_loss = d_loss().cuda()
+        self.mse_loss = mse_loss().cuda()
 
         # define optimizer
         self.task_opt = torch.optim.SGD(self.task.parameters(), lr=self.config.learning_rate,
@@ -101,34 +101,36 @@ class ClassificationWithFeature(object):
         # initialize train counter
         self.epoch = 0
 
-    def run(self, sample_list):
+    def run(self, sample_list, ae):
         try:
             self.set_train()
-            self.train(sample_list)
+            self.train(sample_list, ae)
 
         except KeyboardInterrupt:
             print("You have entered CTRL+C.. Wait to finalize")
 
-    def train(self, sample_list):
+    def train(self, sample_list, ae):
         for _ in range(self.config.epoch):
             self.epoch += 1
 
             random.shuffle(sample_list)
             data_loader = DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=2,
                                      pin_memory=self.config.pin_memory, sampler=Sampler(sample_list))
-            self.train_by_epoch(data_loader)
+            self.train_by_epoch(data_loader, ae)
             
             self.task_scheduler.step()
             self.feature_scheduler.step()
             
         self.test()
 
-    def train_by_epoch(self, data_loader):
+    def train_by_epoch(self, data_loader, ae):
         tqdm_batch = tqdm(data_loader, leave=False, total=len(data_loader))
+
+        eps = 1.0
+        avg_loss = AverageMeter()
 
         self.task.train()
         self.feature_module.train()
-        avg_loss = AverageMeter()
         for curr_it, data in enumerate(tqdm_batch):
             self.task_opt.zero_grad()
             self.feature_opt.zero_grad()
@@ -140,13 +142,16 @@ class ClassificationWithFeature(object):
             target_loss = self.loss(out, targets, 10)
 
             if self.epoch > self.epochl:
+                eps = 0.1
                 for idx in range(len(task_features)):
                     task_features[idx] = task_features[idx].detach()
 
             features = self.feature_module(task_features)
             features = features.view([-1, self.config.vae_embedding_dim])
 
-            loss = (self.d_loss(features, target_loss) * 0.1) + torch.mean(target_loss)
+            ae_features = ae.get_feature(inputs)
+
+            loss = (eps * self.mse_loss(features, ae_features.detach())) + torch.mean(target_loss)
 
             loss.backward()
             self.task_opt.step()
