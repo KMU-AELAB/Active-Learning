@@ -56,8 +56,7 @@ class Query(object):
         for curr_it, data in enumerate(tqdm_batch):
             data = data[0].cuda(async=self.config.async_loading)
 
-            task_features = task.get_feature(data)
-            pre_features = transformer.get_feature(task_features)
+            pre_features = task.get_feature(data)
 
             ae_features = ae.get_feature(data)
             ae_features = ae_features.view([-1, self.config.vae_embedding_dim])
