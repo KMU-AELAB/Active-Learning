@@ -16,6 +16,8 @@ class Query(object):
     def __init__(self, config):
         self.config = config
 
+        self.mse_loss = torch.nn.MSELoss(reduction='None')
+
         self.initial_size = self.config.initial_size
         self.budget = self.config.budge_size
         self.labeled = []
@@ -61,7 +63,7 @@ class Query(object):
             ae_features = ae.get_feature(data)
             ae_features = ae_features.view([-1, self.config.vae_embedding_dim])
 
-            loss = torch.sum((ae_features - pre_features) ** 2, dim=1)
+            loss = self.mse_loss(pre_features, ae_features)
             loss = loss.cpu().tolist()
 
             for idx in range(len(loss)):
