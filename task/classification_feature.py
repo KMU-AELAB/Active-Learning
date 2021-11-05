@@ -221,3 +221,15 @@ class ClassificationWithFeature(object):
             features = features.view([-1, self.config.vae_embedding_dim])
 
         return torch.sqrt(torch.sum(torch.pow(features, 2), dim=1))
+
+    def get_feature(self, inputs):
+        self.task.eval()
+        self.feature_module.eval()
+        with torch.no_grad():
+            inputs = inputs.cuda(async=self.config.async_loading)
+
+            _, task_features = self.task(inputs)
+            features = self.feature_module(task_features)
+            features = features.view([-1, self.config.vae_embedding_dim])
+
+        return features
