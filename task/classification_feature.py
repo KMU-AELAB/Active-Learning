@@ -43,11 +43,19 @@ class ClassificationWithFeature(object):
                 transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010]),
             ])
 
+            self.additional_transform = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.Normalize([0.4914, 0.4822, 0.4465], [0.2023, 0.1994, 0.2010]),
+                transforms.ToTensor(),
+            ])
+
             if self.config.data_name == 'cifar10':
                 self.train_dataset = CIFAR10(os.path.join(self.config.root_path, self.config.data_directory),
                                              train=True, download=True, transform=self.train_transform)
                 self.test_dataset = CIFAR10(os.path.join(self.config.root_path, self.config.data_directory),
                                             train=False, download=True, transform=self.test_transform)
+                self.dataset_for_additional = CIFAR10(os.path.join(self.config.root_path, self.config.data_directory),
+                                                      train=False, download=True, transform=self.additional_transform)
             elif self.config.data_name == 'cifar100':
                 self.train_dataset = CIFAR100(os.path.join(self.config.root_path, self.config.data_directory),
                                              train=True, download=True, transform=self.train_transform)
@@ -120,6 +128,16 @@ class ClassificationWithFeature(object):
             
             self.task_scheduler.step()
             self.feature_scheduler.step()
+
+        for _ in range(self.config.epoch // 2):
+            self.epoch += 1
+
+            random.shuffle(sample_list)
+            data_loader = DataLoader(self.dataset_for_additional, batch_size=self.batch_size, num_workers=2,
+                                     pin_memory=self.config.pin_memory, sampler=Sampler(sample_list))
+            self.additional_train(data_loader, ae)
+
+            self.feature_scheduler.step()
             
         self.test()
 
@@ -165,6 +183,39 @@ class ClassificationWithFeature(object):
 
         if self.epoch % 50 is 0:
             print(f'########## epoch{self.epoch} loss - total: {avg_loss.val} / trans: {trans_loss.val} ##########')
+
+    def additional_train(self, data_loader, ae):
+        tqdm_batch = tqdm(data_loader, leave=False, total=len(data_loader))
+
+        trans_loss = AverageMeter()
+
+        self.task.eval()
+        self.feature_module.train()
+        for curr_it, data in enumerate(tqdm_batch):
+            self.feature_opt.zero_grad()
+
+            inputs = data[0].cuda(async=self.config.async_loading)
+
+            out, task_features = self.task(inputs)
+
+            for idx in range(len(task_features)):
+                task_features[idx] = task_features[idx].detach()
+
+            features = self.feature_module(task_features)
+            features = features.view([-1, self.config.vae_embedding_dim])
+
+            ae_features = ae.get_feature(inputs)
+
+            loss = self.mse_loss(features, ae_features.detach())
+
+            loss.backward()
+            self.feature_opt.step()
+
+            trans_loss.update(loss)
+        tqdm_batch.close()
+
+        if self.epoch % 50 is 0:
+            print(f'########## epoch{self.epoch} loss - trans: {trans_loss.val} ##########')
 
     def test(self):
         with torch.no_grad():
