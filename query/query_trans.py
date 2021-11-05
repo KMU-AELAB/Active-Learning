@@ -16,7 +16,7 @@ class Query(object):
     def __init__(self, config):
         self.config = config
 
-        self.mse_loss = torch.nn.MSELoss(reduction='None')
+        self.mse_loss = torch.nn.MSELoss(reduction='none')
 
         self.initial_size = self.config.initial_size
         self.budget = self.config.budge_size
