@@ -161,8 +161,10 @@ class ClassificationWithFeature(object):
 
             trans_loss.update(t_loss)
             avg_loss.update(loss)
-
         tqdm_batch.close()
+
+        if self.epoch % 50 is 0:
+            print(f'########## epoch{self.epoch} loss - total: {avg_loss.val} / trans: {trans_loss.val} ##########')
 
     def test(self):
         with torch.no_grad():
