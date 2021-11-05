@@ -128,6 +128,7 @@ class ClassificationWithFeature(object):
 
         eps = 1.0
         avg_loss = AverageMeter()
+        trans_loss = AverageMeter()
 
         self.task.train()
         self.feature_module.train()
@@ -151,12 +152,14 @@ class ClassificationWithFeature(object):
 
             ae_features = ae.get_feature(inputs)
 
-            loss = (eps * self.mse_loss(features, ae_features.detach())) + torch.mean(target_loss)
+            t_loss = self.mse_loss(features, ae_features.detach())
+            loss = (eps * t_loss) + torch.mean(target_loss)
 
             loss.backward()
             self.task_opt.step()
             self.feature_opt.step()
 
+            trans_loss.update(t_loss)
             avg_loss.update(loss)
 
         tqdm_batch.close()
